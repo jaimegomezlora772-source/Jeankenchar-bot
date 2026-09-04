@@ -1,40 +1,33 @@
 const express = require('express');
+const path = require('path');
 const app = express();
+
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-let db = {
-  productos: [], // {id, nombre, categoria, cantidad, prov, venta, color, emoji}
-  vendedoras: [
-    { id:'ADMIN', nombre:'MARIA PARRA', whatsapp:'3023790715', usuario:'admin', password:'Jeankenchar2024', rol:'ADMIN' }
-  ],
-  pedidos: [],
-  metodosPago: [
-    {id:'nequi', nombre:'NEQUI', valor:'3023790715 - Maria Parra', activo:true},
-    {id:'breb', nombre:'LLAVE BRE-B', valor:'3023790715', activo:true},
-    {id:'bancolombia', nombre:'BANCOLOMBIA', valor:'', activo:true},
-    {id:'pse', nombre:'PSE', valor:'', activo:true},
-    {id:'daviplata', nombre:'DAVIPLATA', valor:'', activo:true}
-  ],
-  consecutivo: 1
-};
-
-function colorToEmoji(color){
-  const m = {azul:'🔵',amarillo:'🟡',verde:'🟢',rojo:'🔴',cafe:'🟤',marron:'🟤',rosado:'🩷',morado:'🟣',naranja:'🟠',blanco:'⚪',negro:'⚫'}
-  return m[color?.toLowerCase()] || '⚪'
-}
-
-// --- LOGIN ---
-app.post('/api/login', (req,res)=>{
-  const v = db.vendedoras.find(x=> x.usuario===req.body.usuario && x.password===req.body.password);
-  if(v) res.json({ok:true, user:v}); else res.json({ok:false})
+// RUTA PRINCIPAL - Esto te faltaba
+app.get('/', (req,res)=>{
+  res.send(`
+    <h1 style="font-family:sans-serif;text-align:center;color:#ff00aa">💖 JEANKENCHAR BOT LIVE 💖</h1>
+    <p style="text-align:center">Bot funcionando correctamente</p>
+    <p style="text-align:center"><a href="/admin.html">Ir al Panel Admin 🤍</a></p>
+    <p style="text-align:center"><a href="/qr">Ver QR del Bot 📱</a></p>
+  `);
 });
 
-// --- PRODUCTOS ---
-app.get('/api/productos', (req,res)=> res.json(db.productos));
-app.post('/api/productos', (req,res)=>{
-  const p = {...req.body, id: Date.now(), emoji: colorToEmoji(req.body.color)};
-  db.productos.push(p); res.json(p);
+app.get('/qr', (req,res)=>{
+  res.send('<h2>Escanea el QR en los logs de Render</h2>');
+});
+
+app.get('/admin.html', (req,res)=>{
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// API de prueba
+app.get('/api/productos', (req,res)=> res.json([{nombre:'Chicle', color:'azul', emoji:'🔵'}]));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, ()=> console.log('💖 JEANKENCHAR LIVE en puerto '+PORT));  db.productos.push(p); res.json(p);
 });
 
 // --- VENDEDORES ---
