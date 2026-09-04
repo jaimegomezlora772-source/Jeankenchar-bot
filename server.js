@@ -1,7 +1,10 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -21,6 +24,10 @@ let db = {
   consecutivo: 1
 };
 
+function saveDB(){ try{ fs.writeFileSync('./database.json', JSON.stringify(db, null, 2)); }catch(e){ console.log(e.message) } }
+function loadDB(){ try{ if(fs.existsSync('./database.json')) db = JSON.parse(fs.readFileSync('./database.json')); }catch(e){} }
+loadDB();
+
 function colorToEmoji(color){
   const m = {azul:'🔵',amarillo:'🟡',verde:'🟢',rojo:'🔴',cafe:'🟤',marron:'🟤',rosado:'🩷',morado:'🟣',naranja:'🟠',blanco:'⚪',negro:'⚫'}
   return m[color?.toLowerCase()] || '⚪'
@@ -28,50 +35,38 @@ function colorToEmoji(color){
 
 app.get('/', (req,res)=>{
   res.sendFile(path.join(__dirname, 'public', 'index.html'), (err)=>{
-    if(err){
-      res.send(`
-        <div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh">
-          <h1 style="color:#ff00aa">💖 JEANKENCHAR BOT LIVE 💖</h1>
-          <p>Servidor activo correctamente</p>
-          <a href="/admin.html" style="background:#ff00aa;color:white;padding:12px 25px;text-decoration:none;border-radius:25px;display:inline-block;margin:10px">Ir al Panel Admin 🤍</a>
-          <br><br>
-          <p style="color:gray;font-size:13px">API: /api/productos | /api/pedidos | /api/pagos</p>
-        </div>
-      `);
-    }
+    if(err) res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5"><h1 style="color:#ff00aa">💖 JEANKENCHAR BOT LIVE 💖</h1><a href="/admin.html" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:25px;text-decoration:none">Ir al Admin 🤍</a><br><br><a href="/qr">Ver QR Bot</a></div>`);
   });
 });
 
-app.post('/api/login', (req,res)=>{
-  const v = db.vendedoras.find(x=> x.usuario===req.body.usuario && x.password===req.body.password);
-  if(v) res.json({ok:true, user:v}); else res.json({ok:false})
-});
-app.get('/api/productos', (req,res)=> res.json(db.productos));
-app.post('/api/productos', (req,res)=>{
-  const p = {...req.body, id: Date.now(), emoji: colorToEmoji(req.body.color)};
-  db.productos.push(p); res.json(p);
-});
-app.get('/api/vendedoras', (req,res)=> res.json(db.vendedoras));
-app.post('/api/vendedoras', (req,res)=>{
-  const v = {...req.body, id: 'VEND-'+Date.now()};
-  db.vendedoras.push(v); res.json(v);
-});
-app.get('/api/pagos', (req,res)=> res.json(db.metodosPago));
-app.post('/api/pagos', (req,res)=>{ db.metodosPago = req.body; res.json({ok:true}) });
-app.get('/api/pedidos', (req,res)=> res.json(db.pedidos));
-app.post('/api/pedido', (req,res)=>{
-  const codigo = `JK-${String(db.consecutivo).padStart(3,'0')}`;
-  db.consecutivo++;
-  const pedido = {...req.body, codigo, estado:'NUEVO', fecha: new Date().toLocaleString()};
-  db.pedidos.push(pedido);
-  res.json(pedido);
-});
-app.post('/api/pedido/:codigo/estado', (req,res)=>{
-  const p = db.pedidos.find(x=> x.codigo===req.params.codigo);
-  if(p){ p.estado = req.body.estado; if(req.body.novedad) p.novedad=req.body.novedad; }
-  res.json(p);
+app.get('/qr', (req,res)=>{
+  if(!global.qrCode) return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h2>Estado: ${global.botStatus||'Iniciando... espera 30s'}</h2><p>Si dice CONECTADO ya está vinculado 💖</p><a href="/qr" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Recargar 🔄</a><br><br><a href="/admin.html">Volver Admin</a></div>`);
+  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(global.qrCode)}`;
+  res.send(`<div style="text-align:center;padding:30px;font-family:sans-serif;background:#fff0f5;min-height:100vh"><h1 style="color:#ff00aa">💖 Escanea con el cel que quieres que conteste 💖</h1><p>${global.botStatus}</p><img src="${qrImg}" style="border:12px solid white;border-radius:25px"/><br><br><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular dispositivo</p></div>`);
 });
 
-global.db = db;
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=> console.log('💖 JEANKENCHAR LIVE en puerto '+PORT));
+app.get('/api/bot/status', (req,res)=> res.json({ status: global.botStatus||'Iniciando...', qr:!!global.qrCode, conectado: (global.botStatus||'').includes('CONECTADO') }));
+app.get('/api/bot/logout', (req,res)=>{
+  try{
+    if(fs.existsSync('./.wwebjs_auth')) fs.rmSync('./.wwebjs_auth', {recursive:true, force:true});
+    global.qrCode=null; global.botStatus='Sesión borrada. Haz Manual Deploy en Render';
+    res.json({ok:true, msg:'Sesión borrada. Ve a Render > Manual Deploy > espera 3 min > entra a /admin.html y escanea nuevo QR'});
+  }catch(e){ res.json({ok:false, error:e.message}) }
+});
+
+app.post('/api/login', (req,res)=>{ const v=db.vendedoras.find(x=> x.usuario===req.body.usuario && x.password===req.body.password); res.json(v?{ok:true,user:v}:{ok:false}) });
+app.get('/api/productos', (req,res)=> res.json(db.productos));
+app.post('/api/productos', (req,res)=>{ const p={...req.body, id:Date.now(), emoji:colorToEmoji(req.body.color)}; db.productos.push(p); saveDB(); res.json(p); });
+app.delete('/api/productos/:id', (req,res)=>{ db.productos=db.productos.filter(p=> String(p.id)!==String(req.params.id)); saveDB(); res.json({ok:true}); });
+app.get('/api/vendedoras', (req,res)=> res.json(db.vendedoras));
+app.post('/api/vendedoras', (req,res)=>{ const v={...req.body, id:'VEND-'+Date.now()}; db.vendedoras.push(v); saveDB(); res.json(v); });
+app.get('/api/pagos', (req,res)=> res.json(db.metodosPago));
+app.post('/api/pagos', (req,res)=>{ db.metodosPago=req.body; saveDB(); res.json({ok:true}) });
+app.get('/api/pedidos', (req,res)=> res.json(db.pedidos));
+app.post('/api/pedido', (req,res)=>{ const codigo=`JK-${String(db.consecutivo).padStart(3,'0')}`; db.consecutivo++; const pedido={...req.body,codigo,estado:'NUEVO',fecha:new Date().toLocaleString()}; db.pedidos.push(pedido); saveDB(); res.json(pedido); });
+app.post('/api/pedido/:codigo/estado', (req,res)=>{ const p=db.pedidos.find(x=> x.codigo===req.params.codigo); if(p){ p.estado=req.body.estado; if(req.body.novedad) p.novedad=req.body.novedad; saveDB(); } res.json(p); });
+
+global.db=db; global.saveDB=saveDB; global.app=app; global.qrCode=null; global.botStatus='Iniciando servidor...';
+const PORT=process.env.PORT||3000;
+app.listen(PORT, ()=> console.log('💖 LIVE '+PORT));
+try{ require('./bot'); }catch(e){ console.log('Bot error', e.message) }
