@@ -1,19 +1,20 @@
 {
   "name": "heladeria-jeankenchar-bot",
   "version": "2.0.0",
-  "description": "Bot WhatsApp + Panel Admin + Supabase - JEANKENCHAR",
   "main": "server.js",
   "engines": {
-    "node": "20.18.0",
-    "npm": "10.8.2"
+    "node": "20.18.0"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.23.
+    "whatsapp-web.js": "^1.23.0",
+    "@supabase/supabase-js": "^2.39.7",
+    "qrcode": "^1.5.3"
+  }
+}
