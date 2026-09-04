@@ -45,12 +45,14 @@ app.get('/qr', (req,res)=>{
   res.send(`<div style="text-align:center;padding:30px;font-family:sans-serif;background:#fff0f5;min-height:100vh"><h1 style="color:#ff00aa">💖 Escanea con el cel que quieres que conteste 💖</h1><p>${global.botStatus}</p><img src="${qrImg}" style="border:12px solid white;border-radius:25px"/><br><br><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular dispositivo</p></div>`);
 });
 
-app.get('/api/bot/status', (req,res)=> res.json({ status: global.botStatus||'Iniciando...', qr:!!global.qrCode, conectado: (global.botStatus||'').includes('CONECTADO') }));
 app.get('/api/bot/logout', (req,res)=>{
   try{
     if(fs.existsSync('./.wwebjs_auth')) fs.rmSync('./.wwebjs_auth', {recursive:true, force:true});
-    global.qrCode=null; global.botStatus='Sesión borrada. Haz Manual Deploy en Render';
-    res.json({ok:true, msg:'Sesión borrada. Ve a Render > Manual Deploy > espera 3 min > entra a /admin.html y escanea nuevo QR'});
+    if(fs.existsSync('./.wwebjs_cache')) fs.rmSync('./.wwebjs_cache', {recursive:true, force:true});
+    global.qrCode=null; 
+    global.botStatus='Sesión borrada. Reiniciando QR... espera 20s y dale a Ver QR';
+    try{ global.client.destroy().then(()=>global.client.initialize()); }catch(e){ try{ global.client.initialize(); }catch(e2){} }
+    res.json({ok:true});
   }catch(e){ res.json({ok:false, error:e.message}) }
 });
 
