@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>JEANKENCHAR ADMIN</title></head>
+<body style="font-family:sans-serif; background:#fff0f5">
+<h1>💖 HELADERIA JEANKENCHAR - ADMIN 🤍</h1>
+
+<h3>🔐 LOGIN</h3>
+<input id="user" placeholder="usuario"><input id="pass" type="password" placeholder="clave"><button onclick="login()">Entrar</button>
+
+<div id="panel" style="display:none">
+  <h2>🎨 AGREGAR PRODUCTO CON COLOR</h2>
+  Nombre: <input id="p_nombre"> Categoria: <select id="p_cat"><option>HELADOS POR BOLA</option><option>FRESAS</option><option>ENSALADAS</option><option>BEBIDAS</option><option>ADICIONES</option><option>MALTEADAS</option><option>FRESAS 3 TAMAÑOS</option></select>
+  Cantidad: <input id="p_cant" type="number"> Prov: <input id="p_prov" type="number"> Venta: <input id="p_venta" type="number">
+  Color: <select id="p_color"><option value="azul">🔵 Azul</option><option value="amarillo">🟡 Amarillo</option><option value="verde">🟢 Verde</option><option value="rojo">🔴 Rojo</option><option value="cafe">🟤 Café</option><option value="rosado">🩷 Rosado</option><option value="morado">🟣 Morado</option></select>
+  <button onclick="addProd()">💖 Guardar Producto</button>
+
+  <h2>👩‍💼 AÑADIR VENDEDORA POR WHATSAPP</h2>
+  Nombre: <input id="v_nombre"> WhatsApp: <input id="v_what"> Usuario: <input id="v_user"> Clave: <input id="v_pass">
+  <button onclick="addVend()">🤍 Guardar Vendedora</button>
+
+  <h2>💰 METODOS DE PAGO EDITABLES</h2>
+  <div id="pagos"></div>
+  <button onclick="savePagos()">💖 Actualizar Botones</button>
+
+  <h2>📦 PEDIDOS #JK-001</h2>
+  <div id="pedidos"></div>
+</div>
+<script>
+// Aqui va fetch a /api/... para todo
+async function login(){ /* valida /api/login */ document.getElementById('panel').style.display='block' }
+</script>
+</body></html>
