@@ -7,12 +7,21 @@ const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
-    args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-accelerated-2d-canvas','--no-first-run','--no-zygote','--single-process','--disable-gpu']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ]
   }
 });
 
 let carritos = {};
+global.client = client;
 
 client.on('qr', (qr) => {
   global.qrCode = qr;
@@ -39,7 +48,7 @@ client.on('message', async msg => {
     const db = global.db;
     if(!db) return;
 
-    if(lower==='hola' || lower==='menu' || lower==='ola' || lower==='buenas'){
+    if(['hola','menu','ola','buenas','inicio'].includes(lower)){
       await client.sendMessage(num, `💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 👩‍💼 HABLAR CON ASESOR`);
       return;
     }
@@ -89,7 +98,8 @@ client.on('message', async msg => {
       const codigo = `JK-${String(db.consecutivo).padStart(3,'0')}`;
       db.consecutivo++;
       const pedido = { codigo, items: carritos[num].items, total: carritos[num].total, observacion: carritos[num].observacion, cliente: num, fecha: new Date().toLocaleString(), estado:'NUEVO', metodoPago:'Por definir' };
-      db.pedidos.push(pedido); if(global.saveDB) global.saveDB();
+      db.pedidos.push(pedido);
+      if(global.saveDB) global.saveDB();
       await client.sendMessage(num, `💖💖💖 PEDIDO ${codigo} CREADO 💖💖💖\n\n${carritos[num].items.map(i=> `${i.emoji} ${i.nombre}`).join('\n')}\n💰 TOTAL $${carritos[num].total}\n📝 OBS: ${carritos[num].observacion||'Ninguna'}\n\n🤍 En breve te contacta una asesora. ¡Gracias!`);
       delete carritos[num];
       return;
