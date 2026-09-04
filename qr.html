@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><title>Vincular Jeankenchar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="text-align:center; font-family:sans-serif; padding:20px">
+<h2>JEANKENCHAR - Vincular WhatsApp</h2>
+<div id="qr-container">Cargando QR...</div>
+<p id="timer"></p>
+<button onclick="pedirQR()" style="padding:10px 20px; margin-top:20px">Generar Nuevo QR</button>
+
+<script>
+async function pedirQR(){
+  const res = await fetch('/api/qr-image')
+  document.getElementById('qr-container').innerHTML = await res.text()
+}
+
+pedirQR()
+setInterval(pedirQR, 7000) // Se genera uno nuevo cada 7 segundos automático
+</script>
+</body>
+</html>
