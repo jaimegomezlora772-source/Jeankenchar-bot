@@ -6,7 +6,7 @@ console.log('💖 Iniciando BOT JEANKENCHAR...');
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
-    executablePath: '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
+    executablePath: '/opt/render/project/src/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
     headless: true,
     args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--single-process','--no-zygote']
   }
