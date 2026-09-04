@@ -26,9 +26,7 @@ function colorToEmoji(color){
   return m[color?.toLowerCase()] || '⚪'
 }
 
-// --- FIX: RUTA PRINCIPAL PARA QUE NO SALGA Cannot GET / ---
 app.get('/', (req,res)=>{
-  // Si tienes index.html en public lo muestra, si no muestra el panel
   res.sendFile(path.join(__dirname, 'public', 'index.html'), (err)=>{
     if(err){
       res.send(`
@@ -44,31 +42,22 @@ app.get('/', (req,res)=>{
   });
 });
 
-// --- LOGIN ---
 app.post('/api/login', (req,res)=>{
   const v = db.vendedoras.find(x=> x.usuario===req.body.usuario && x.password===req.body.password);
   if(v) res.json({ok:true, user:v}); else res.json({ok:false})
 });
-
-// --- PRODUCTOS ---
 app.get('/api/productos', (req,res)=> res.json(db.productos));
 app.post('/api/productos', (req,res)=>{
   const p = {...req.body, id: Date.now(), emoji: colorToEmoji(req.body.color)};
   db.productos.push(p); res.json(p);
 });
-
-// --- VENDEDORES ---
 app.get('/api/vendedoras', (req,res)=> res.json(db.vendedoras));
 app.post('/api/vendedoras', (req,res)=>{
   const v = {...req.body, id: 'VEND-'+Date.now()};
   db.vendedoras.push(v); res.json(v);
 });
-
-// --- METODOS PAGO EDITABLES ---
 app.get('/api/pagos', (req,res)=> res.json(db.metodosPago));
 app.post('/api/pagos', (req,res)=>{ db.metodosPago = req.body; res.json({ok:true}) });
-
-// --- PEDIDOS ---
 app.get('/api/pedidos', (req,res)=> res.json(db.pedidos));
 app.post('/api/pedido', (req,res)=>{
   const codigo = `JK-${String(db.consecutivo).padStart(3,'0')}`;
@@ -77,36 +66,12 @@ app.post('/api/pedido', (req,res)=>{
   db.pedidos.push(pedido);
   res.json(pedido);
 });
-
 app.post('/api/pedido/:codigo/estado', (req,res)=>{
   const p = db.pedidos.find(x=> x.codigo===req.params.codigo);
   if(p){ p.estado = req.body.estado; if(req.body.novedad) p.novedad=req.body.novedad; }
   res.json(p);
 });
 
-// --- FIX: PUERTO PARA RENDER ---
+global.db = db;
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=> console.log('💖 JEANKENCHAR LIVE en puerto '+PORT));  db.vendedoras.push(v); res.json(v);
-});
-
-// --- METODOS PAGO EDITABLES ---
-app.get('/api/pagos', (req,res)=> res.json(db.metodosPago));
-app.post('/api/pagos', (req,res)=>{ db.metodosPago = req.body; res.json({ok:true}) });
-
-// --- PEDIDOS ---
-app.get('/api/pedidos', (req,res)=> res.json(db.pedidos));
-app.post('/api/pedido', (req,res)=>{
-  const codigo = `JK-${String(db.consecutivo).padStart(3,'0')}`;
-  db.consecutivo++;
-  const pedido = {...req.body, codigo, estado:'NUEVO', fecha: new Date().toLocaleString()};
-  db.pedidos.push(pedido);
-  res.json(pedido);
-});
-
-app.post('/api/pedido/:codigo/estado', (req,res)=>{
-  const p = db.pedidos.find(x=> x.codigo===req.params.codigo);
-  if(p){ p.estado = req.body.estado; if(req.body.novedad) p.novedad=req.body.novedad; }
-  res.json(p);
-});
-
-app.listen(3000, ()=> console.log('💖 JEANKENCHAR corriendo en 3000'));
+app.listen(PORT, ()=> console.log('💖 JEANKENCHAR LIVE en puerto '+PORT));
