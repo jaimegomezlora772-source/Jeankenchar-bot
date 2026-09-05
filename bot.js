@@ -1,29 +1,32 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const chromium = require('@sparticuz/chromium');
+const chromium = require('@sparticuz/chromium-min');
 
 console.log('💖 Iniciando BOT JEANKENCHAR...');
 
 (async () => {
-const executablePath = await chromium.executablePath();
+try {
+console.log('💖 Cargando chromium-min...');
+const executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
+console.log('💖 Chromium listo en:', executablePath);
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
-    executablePath: executablePath,
-    headless: chromium.headless,
-    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    defaultViewport: chromium.defaultViewport
+    executablePath,
+    headless: true,
+    args: [...chromium.args, '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu','--single-process','--no-zygote'],
+    defaultViewport: null
   }
 });
 
-let carritos = {}; // numero -> {items, observacion}
+let carritos = {};
 global.client = client;
 
 client.on('qr', (qr) => {
   global.qrCode = qr;
   global.botStatus = 'QR LISTO';
-  console.log('💖 QR GENERADO');
+  console.log('💖💖💖 QR GENERADO 💖💖💖');
   qrcode.generate(qr, { small: true });
 });
 
@@ -33,6 +36,14 @@ client.on('ready', () => {
   console.log('💖💖💖 BOT CONECTADO', client.info.wid.user);
 });
 
+client.on('auth_failure', m => console.log('❌ AUTH FAIL', m));
+client.on('disconnected', r => console.log('❌ DISCONNECTED', r));
+client.on('loading_screen', (p,m) => console.log('⏳ CARGANDO WA', p, m));
+
+console.log('💖 Inicializando cliente WhatsApp...');
+await client.initialize();
+console.log('💖 Cliente inicializado - esperando QR');
+
 client.on('message', async msg => {
   try {
     const num = msg.from;
@@ -40,7 +51,7 @@ client.on('message', async msg => {
 
     const vendedora = global.db?.vendedoras?.find(v => num.includes(v.whatsapp));
 
-    if (vendedora) {
+    if (vendedora && (msg.body.toLowerCase() === 'menu' || msg.body.toLowerCase() === 'hola')) {
       await msg.reply(`💖 Hola ${vendedora.nombre} te identifique como vendedora de JEANKENCHAR 🤍\nEscribe *MENU* para registrar venta fisica`);
       return;
     }
@@ -52,7 +63,7 @@ client.on('message', async msg => {
     if (msg.body === '1' || msg.body.toLowerCase().includes('ver menu')) {
       let texto = `💖 MENU JEANKENCHAR 🤍\n`;
       const prods = global.db?.productos || [];
-      prods.forEach((p, i) => texto += `${i+1}. ${p.emoji || '🍦'} ${p.nombre} - $${p.precio}\n`);
+      prods.forEach((p, i) => texto += `${i + 1}. ${p.emoji || '🍦'} ${p.nombre} - $${p.precio}\n`);
       await client.sendMessage(num, texto);
       carritos[num] = { items: [], paso: 'eligiendo' };
     }
@@ -95,5 +106,7 @@ ${pedido.items.map(i => `${i.emoji} ${i.cantidad}x ${i.nombre} - $${i.total}`).j
 
 global.generarFactura = generarFactura;
 
-client.initialize().catch(e => console.log('❌ INIT ERROR', e.message));
+} catch (e) {
+  console.log('❌ BOT ERROR FATAL', e.message, e.stack);
+}
 })();
