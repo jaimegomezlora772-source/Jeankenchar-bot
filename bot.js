@@ -23,18 +23,16 @@ const client = new Client({
 let carritos = {};
 global.client = client;
 
-// === CORRECCIÓN QR QUE SE VENCE ===
+// QR QUE SE RENUEVA SOLO
 client.on('qr', (qr) => {
   global.qrCode = qr;
-  global.qrTimestamp = Date.now(); // guardamos cuando se generó
+  global.qrTimestamp = Date.now();
   global.botStatus = 'QR LISTO - Escanea antes de 30s';
   console.log('💖💖💖 QR NUEVO GENERADO - VENCE EN 30s 💖💖💖');
   qrcode.generate(qr, { small: true });
-  
-  // Si en 35 segundos no lo escanearon, avisamos que vendrá uno nuevo
   setTimeout(() => {
     if (global.qrCode === qr && !global.botStatus.includes('CONECTADO')) {
-      console.log('⏰ QR vencido, generando uno nuevo automáticamente...');
+      console.log('⏰ QR vencido, generando uno nuevo...');
       global.botStatus = 'QR VENCIDO - Generando nuevo...';
     }
   }, 35000);
@@ -43,28 +41,24 @@ client.on('qr', (qr) => {
 client.on('ready', () => {
   global.botStatus = 'CONECTADO 💖 ' + client.info.wid.user;
   global.qrCode = null;
-  global.qrTimestamp = null;
   console.log('💖💖💖 BOT CONECTADO', client.info.wid.user);
 });
 
 client.on('auth_failure', m => console.log('❌ AUTH FAIL', m));
 client.on('disconnected', r => {
   console.log('❌ DISCONNECTED', r);
-  global.botStatus = 'DESCONECTADO - Generando nuevo QR...';
+  global.botStatus = 'DESCONECTADO';
   global.qrCode = null;
 });
 
-client.on('loading_screen', (p,m) => console.log('⏳ CARGANDO WA', p, m));
-
-console.log('💖 Inicializando cliente WhatsApp...');
-await client.initialize();
-console.log('💖 Cliente inicializado - esperando QR');
-
-// === TU LÓGICA ORIGINAL COMPLETA ===
+// === LOGICA COMPLETA - AHORA ANTES DE INITIALIZE ===
 client.on('message', async msg => {
   try {
+    console.log('📩 MENSAJE de', msg.from, ':', msg.body);
     const num = msg.from;
-    if (msg.fromMe || num.includes('status') || num.includes('@g.us')) return;
+    if (msg.fromMe) return;
+    if (num.includes('status')) return;
+    if (num.includes('@g.us')) return;
 
     const vendedora = global.db?.vendedoras?.find(v => num.includes(v.whatsapp));
 
@@ -73,28 +67,28 @@ client.on('message', async msg => {
       return;
     }
 
-    if (msg.body.toLowerCase() === 'menu' || msg.body.toLowerCase() === 'hola') {
-      await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 👩‍💼 HABLAR CON ASESOR`);
-    }
-
-    if (msg.body === '1' || msg.body.toLowerCase().includes('ver menu')) {
-      let texto = `💖 MENU JEANKENCHAR 🤍\n`;
-      const prods = global.db?.productos || [];
-      prods.forEach((p, i) => texto += `${i + 1}. ${p.emoji || '🍦'} ${p.nombre} - $${p.precio}\n`);
-      await client.sendMessage(num, texto);
-      carritos[num] = { items: [], paso: 'eligiendo' };
+    if (msg.body.toLowerCase() === 'menu' || msg.body.toLowerCase() === 'hola' || msg.body === '1') {
+      if (msg.body === '1' || msg.body.toLowerCase().includes('ver menu')) {
+        let texto = `💖 MENU JEANKENCHAR 🤍\n`;
+        const prods = global.db?.productos || [];
+        if (prods.length === 0) texto += `1. 🍦 Helado Test - $5000\n`;
+        else prods.forEach((p, i) => texto += `${i + 1}. ${p.emoji || '🍦'} ${p.nombre} - $${p.precio}\n`);
+        await client.sendMessage(num, texto);
+        carritos[num] = { items: [], paso: 'eligiendo' };
+      } else {
+        await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 👩‍💼 HABLAR CON ASESOR`);
+      }
+      return;
     }
 
     if (msg.body === '2') {
       await msg.reply(`🤍 Perfecto, ¿Cuál es tu nombre?`);
       carritos[num] = { paso: 'esperando_nombre_asesor' };
+      return;
     }
 
-    if (carritos[num]?.paso === 'preguntar_observacion') {
-      await client.sendMessage(num, `💖 ¿Deseas algo más o alguna observación? 🤍\n\nTu pedido:\n${resumen(num)}`);
-    }
   } catch (e) {
-    console.log('❌ MSG ERROR', e.message);
+    console.log('❌ MSG ERROR', e.message, e.stack);
   }
 });
 
@@ -122,6 +116,10 @@ ${pedido.items.map(i => `${i.emoji} ${i.cantidad}x ${i.nombre} - $${i.total}`).j
 }
 
 global.generarFactura = generarFactura;
+
+console.log('💖 Inicializando cliente WhatsApp...');
+await client.initialize();
+console.log('💖 Cliente inicializado');
 
 } catch (e) {
   console.log('❌ BOT ERROR FATAL', e.message, e.stack);
