@@ -8,7 +8,7 @@ console.log('💖 Iniciando BOT JEANKENCHAR...');
 try {
 console.log('💖 Cargando chromium-min...');
 const executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
-console.log('💖 Chromium listo en:', executablePath);
+console.log('💖 Chromium listo:', executablePath);
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
@@ -23,27 +23,44 @@ const client = new Client({
 let carritos = {};
 global.client = client;
 
+// === CORRECCIÓN QR QUE SE VENCE ===
 client.on('qr', (qr) => {
   global.qrCode = qr;
-  global.botStatus = 'QR LISTO';
-  console.log('💖💖💖 QR GENERADO 💖💖💖');
+  global.qrTimestamp = Date.now(); // guardamos cuando se generó
+  global.botStatus = 'QR LISTO - Escanea antes de 30s';
+  console.log('💖💖💖 QR NUEVO GENERADO - VENCE EN 30s 💖💖💖');
   qrcode.generate(qr, { small: true });
+  
+  // Si en 35 segundos no lo escanearon, avisamos que vendrá uno nuevo
+  setTimeout(() => {
+    if (global.qrCode === qr && !global.botStatus.includes('CONECTADO')) {
+      console.log('⏰ QR vencido, generando uno nuevo automáticamente...');
+      global.botStatus = 'QR VENCIDO - Generando nuevo...';
+    }
+  }, 35000);
 });
 
 client.on('ready', () => {
   global.botStatus = 'CONECTADO 💖 ' + client.info.wid.user;
   global.qrCode = null;
+  global.qrTimestamp = null;
   console.log('💖💖💖 BOT CONECTADO', client.info.wid.user);
 });
 
 client.on('auth_failure', m => console.log('❌ AUTH FAIL', m));
-client.on('disconnected', r => console.log('❌ DISCONNECTED', r));
+client.on('disconnected', r => {
+  console.log('❌ DISCONNECTED', r);
+  global.botStatus = 'DESCONECTADO - Generando nuevo QR...';
+  global.qrCode = null;
+});
+
 client.on('loading_screen', (p,m) => console.log('⏳ CARGANDO WA', p, m));
 
 console.log('💖 Inicializando cliente WhatsApp...');
 await client.initialize();
 console.log('💖 Cliente inicializado - esperando QR');
 
+// === TU LÓGICA ORIGINAL COMPLETA ===
 client.on('message', async msg => {
   try {
     const num = msg.from;
