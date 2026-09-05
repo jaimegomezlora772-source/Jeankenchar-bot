@@ -1,10 +1,13 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const puppeteer = require('puppeteer');
+
 console.log('💖 Iniciando BOT JEANKENCHAR...');
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
+    executablePath: puppeteer.executablePath(),
     headless: true,
     args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-first-run','--no-zygote','--single-process']
   }
@@ -14,7 +17,7 @@ let carritos={};
 global.client=client;
 
 client.on('qr', (qr)=>{ global.qrCode=qr; global.botStatus='QR LISTO'; console.log('💖 QR GENERADO'); qrcode.generate(qr,{small:true}); });
-client.on('authenticated', ()=> console.log('🔐 AUTENTICADO - espera READY'));
+client.on('authenticated', ()=> console.log('🔐 AUTENTICADO'));
 client.on('ready', ()=>{ global.botStatus='CONECTADO 💖 '+client.info.wid.user; global.qrCode=null; console.log('💖💖💖 BOT CONECTADO', client.info.wid.user); });
 client.on('auth_failure', m=> console.log('❌ AUTH FAILURE', m));
 client.on('disconnected', r=> console.log('❌ DESCONECTADO', r));
@@ -26,7 +29,6 @@ client.on('message', async msg=>{
     const num=msg.from, texto=msg.body.trim(), lower=texto.toLowerCase();
     const db=global.db;
     if(!db ||!db.productos.length){ await client.sendMessage(num, '💖 Cargando catálogo... escribe HOLA de nuevo en 3s'); return; }
-
     if(['hola','menu','ola','buenas','inicio','jeans','catalogo'].some(p=>lower.includes(p))){
       await client.sendMessage(num, `💖 *JEANKENCHAR JEANS* 💖\n\n1️⃣ VER CATALOGO\n2️⃣ ASESOR`);
       return;
@@ -39,7 +41,7 @@ client.on('message', async msg=>{
       await client.sendMessage(num, txt);
       return;
     }
-    if(texto==='2'){ await client.sendMessage(num, `🤍 Asesora en camino, escríbenos al 3023790715`); return; }
+    if(texto==='2'){ await client.sendMessage(num, `🤍 Asesora en camino`); return; }
     const idx=parseInt(texto)-1;
     if(!isNaN(idx) && db.productos[idx] && carritos[num]){
       carritos[num].items.push(db.productos[idx]);
