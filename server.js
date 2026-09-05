@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// === CONEXION MONGODB - USANDO LA QUE YA TE FUNCIONÓ ===
+// === CONEXION MONGODB ===
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://jaimegomezlora772_db_user:PGN0PkdtYEQTt5Wi@ac-boevypw-shard-00-00.x17aual.mongodb.net:27017,ac-boevypw-shard-00-01.x17aual.mongodb.net:27017,ac-boevypw-shard-00-02.x17aual.mongodb.net:27017/jeankenchar_db?ssl=true&replicaSet=atlas-rgilvu-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
@@ -73,7 +73,6 @@ async function loadDB(){
     console.log('✅ DB cargada desde Mongo:', db.productos.length, 'productos');
   }catch(e){ console.log('loadDB error', e.message) }
 }
-setTimeout(loadDB, 2000);
 
 async function saveDB(){
   try{ await Config.findOneAndUpdate({clave:'main'}, {consecutivo: db.consecutivo}, {upsert:true}); }catch(e){}
@@ -90,32 +89,23 @@ app.get('/', (req,res)=>{
   });
 });
 
-// === NUEVO QR QUE NO SE VENCE - SE ACTUALIZA SOLO ===
 app.get('/qr', (req,res)=>{
   if(!global.qrCode){
     const status = global.botStatus || 'Iniciando... espera 15s';
     const isConnected = status.toLowerCase().includes('conectado');
     if(isConnected){
-      return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h1 style="color:green">✅ BOT CONECTADO</h1><h2>${status}</h2><p>Ya está vinculado, no necesitas QR</p><a href="/admin.html" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Ir al Admin</a><br><br><button onclick="fetch('/api/bot/logout').then(()=>location.reload())" style="background:red;color:white;padding:10px 20px;border-radius:20px;border:none">Cerrar sesión y generar nuevo QR</button></div>`);
+      return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h1 style="color:green">✅ BOT CONECTADO</h1><h2>${status}</h2><p>Ya está vinculado</p><a href="/admin.html" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Ir al Admin</a><br><br><button onclick="fetch('/api/bot/logout').then(()=>location.reload())" style="background:red;color:white;padding:10px 20px;border-radius:20px;border:none">Cerrar sesión</button></div>`);
     }
-    return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h2>Estado: ${status}</h2><p>Generando QR... espera 10 segundos</p><a href="/qr" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Recargar 🔄</a><br><br><p style="font-size:12px">Si tarda mucho, dale a Recargar</p><script>setTimeout(()=>location.reload(), 5000)</script></div>`);
+    return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h2>Estado: ${status}</h2><p>Generando QR... espera 10s</p><a href="/qr" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Recargar 🔄</a><script>setTimeout(()=>location.reload(), 5000)</script></div>`);
   }
   const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(global.qrCode)}`;
   res.send(`
     <div style="text-align:center;padding:20px;font-family:sans-serif;background:#fff0f5;min-height:100vh">
-      <h1 style="color:#ff00aa">💖 Escanea YA - Se renueva solo 💖</h1>
-      <p id="timer" style="font-weight:bold;color:#ff00aa;font-size:18px">Este QR expira en 20s - Nuevo en: <span id="count">7</span>s</p>
+      <h1 style="color:#ff00aa">💖 Escanea YA 💖</h1>
       <img src="${qrImg}" style="border:15px solid white;border-radius:25px;box-shadow:0 5px 20px rgba(0,0,0,0.2)"/>
-      <br><br>
-      <p><b>WhatsApp > Ajustes > Dispositivos vinculados > Vincular dispositivo</b></p>
-      <p style="color:gray;font-size:13px">No le tomes foto para mandarlo. Que la persona entre a este mismo link: <br>jeankenchar-bot.onrender.com/qr</p>
+      <br><br><p><b>WhatsApp > Ajustes > Dispositivos vinculados > Vincular</b></p>
       <script>
-        let c=7;
-        setInterval(()=>{
-          c--;
-          document.getElementById('count').innerText=c;
-          if(c<=0) location.reload();
-        },1000)
+        let c=7; setInterval(()=>{c--; if(c<=0) location.reload();},1000)
       </script>
     </div>
   `);
@@ -127,7 +117,7 @@ app.get('/api/bot/logout', (req,res)=>{
     if(fs.existsSync('./.wwebjs_auth')) fs.rmSync('./.wwebjs_auth', {recursive:true, force:true});
     if(fs.existsSync('./.wwebjs_cache')) fs.rmSync('./.wwebjs_cache', {recursive:true, force:true});
     global.qrCode=null;
-    global.botStatus='Sesión borrada. Reiniciando QR... espera 20s';
+    global.botStatus='Sesión borrada. Reiniciando...';
     try{ global.client.destroy().then(()=>global.client.initialize()); }catch(e){ try{ global.client.initialize(); }catch(e2){} }
     res.json({ok:true});
   }catch(e){ res.json({ok:false, error:e.message}) }
@@ -145,7 +135,20 @@ app.get('/api/pedidos', async (req,res)=>{ const peds = await Pedido.find().sort
 app.post('/api/pedido', async (req,res)=>{ const codigo=`JK-${String(db.consecutivo).padStart(3,'0')}`; db.consecutivo++; const pedido = await Pedido.create({...req.body,codigo,estado:'NUEVO',fecha:new Date().toLocaleString()}); db.pedidos.push(pedido); await saveDB(); res.json(pedido); });
 app.post('/api/pedido/:codigo/estado', async (req,res)=>{ const p = await Pedido.findOneAndUpdate({codigo:req.params.codigo}, {estado:req.body.estado, novedad:req.body.novedad}, {new:true}); res.json(p); });
 
-global.db=db; global.saveDB=saveDB; global.app=app; global.qrCode=null; global.botStatus='Iniciando servidor...';
-const PORT=process.env.PORT||3000;
+global.db=db;
+global.saveDB=saveDB;
+global.app=app;
+global.qrCode=null;
+global.botStatus='Iniciando servidor...';
+
+const PORT=process.env.PORT||10000;
 app.listen(PORT, ()=> console.log('💖 LIVE '+PORT));
-try{ require('./bot'); }catch(e){ console.log('Bot error', e.message) }
+
+// Cargar DB al inicio
+loadDB();
+
+// Iniciar BOT 3 segundos después para que Mongo cargue
+setTimeout(()=>{
+  console.log('⏳ Iniciando bot después de cargar DB...');
+  try{ require('./bot'); }catch(e){ console.log('Bot error', e.message, e.stack) }
+}, 3000);
