@@ -89,6 +89,7 @@ app.get('/', (req,res)=>{
   });
 });
 
+// === QR CON REFRESH AUTOMATICO CADA 20s ===
 app.get('/qr', (req,res)=>{
   if(!global.qrCode){
     const status = global.botStatus || 'Iniciando... espera 15s';
@@ -96,16 +97,24 @@ app.get('/qr', (req,res)=>{
     if(isConnected){
       return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h1 style="color:green">✅ BOT CONECTADO</h1><h2>${status}</h2><p>Ya está vinculado</p><a href="/admin.html" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Ir al Admin</a><br><br><button onclick="fetch('/api/bot/logout').then(()=>location.reload())" style="background:red;color:white;padding:10px 20px;border-radius:20px;border:none">Cerrar sesión</button></div>`);
     }
-    return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h2>Estado: ${status}</h2><p>Generando QR... espera 10s</p><a href="/qr" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Recargar 🔄</a><script>setTimeout(()=>location.reload(), 5000)</script></div>`);
+    return res.send(`<div style="font-family:sans-serif;text-align:center;padding:50px;background:#fff0f5;min-height:100vh"><h2>Estado: ${status}</h2><p>Generando QR... espera 10s y recarga</p><a href="/qr" style="background:#ff00aa;color:white;padding:12px 25px;border-radius:20px;text-decoration:none">Recargar 🔄</a><script>setTimeout(()=>location.reload(), 4000)</script></div>`);
   }
   const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(global.qrCode)}`;
   res.send(`
     <div style="text-align:center;padding:20px;font-family:sans-serif;background:#fff0f5;min-height:100vh">
       <h1 style="color:#ff00aa">💖 Escanea YA 💖</h1>
+      <p><b>${global.botStatus}</b></p>
       <img src="${qrImg}" style="border:15px solid white;border-radius:25px;box-shadow:0 5px 20px rgba(0,0,0,0.2)"/>
       <br><br><p><b>WhatsApp > Ajustes > Dispositivos vinculados > Vincular</b></p>
+      <p id="contador" style="font-size:18px;color:#ff00aa;font-weight:bold">Recargando QR nuevo en 20s...</p>
+      <p style="font-size:12px;color:gray">El QR vence cada 30s y se genera uno nuevo automáticamente</p>
       <script>
-        let c=7; setInterval(()=>{c--; if(c<=0) location.reload();},1000)
+        let c=20;
+        setInterval(()=>{
+          c--;
+          document.getElementById('contador').innerText='Recargando QR nuevo en '+c+'s...';
+          if(c<=0) location.reload();
+        },1000);
       </script>
     </div>
   `);
@@ -121,6 +130,10 @@ app.get('/api/bot/logout', (req,res)=>{
     try{ global.client.destroy().then(()=>global.client.initialize()); }catch(e){ try{ global.client.initialize(); }catch(e2){} }
     res.json({ok:true});
   }catch(e){ res.json({ok:false, error:e.message}) }
+});
+
+app.get('/api/bot/status', (req,res)=>{
+  res.json({ status: global.botStatus, qr:!!global.qrCode, vinculado: global.numeroVinculado || null });
 });
 
 app.post('/api/login', (req,res)=>{ const v=db.vendedoras.find(x=> x.usuario===req.body.usuario && x.password===req.body.password); res.json(v?{ok:true,user:v}:{ok:false}) });
@@ -140,6 +153,7 @@ global.saveDB=saveDB;
 global.app=app;
 global.qrCode=null;
 global.botStatus='Iniciando servidor...';
+global.numeroVinculado=null;
 
 const PORT=process.env.PORT||10000;
 app.listen(PORT, ()=> console.log('💖 LIVE '+PORT));
