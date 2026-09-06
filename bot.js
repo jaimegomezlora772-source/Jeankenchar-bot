@@ -1,21 +1,38 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const fs = require('fs');
-const chromium = require('@sparticuz/chromium');
+let chromium;
+try { chromium = require('@sparticuz/chromium-min'); } catch(e){ console.log('chromium-min no disponible, usando args default'); }
 
 (async () => {
 try {
 console.log('⏳ Iniciando bot...');
-const executablePath = await chromium.executablePath();
-console.log('Chromium final:', executablePath);
-console.log('Usando args de @sparticuz/chromium');
+let executablePath = undefined;
+let browserArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-accelerated-2d-canvas',
+  '--no-first-run',
+  '--no-zygote',
+  '--single-process',
+  '--disable-gpu',
+  '--disable-extensions'
+];
 
+if (chromium) {
+  console.log('Usando chromium-min - descargando binario...');
+  executablePath = await chromium.executablePath();
+  browserArgs = chromium.args;
+  console.log('Chromium path descargado:', executablePath);
+}
+
+console.log('Chromium final:', executablePath || 'bundled/default');
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
     executablePath: executablePath,
-    headless: chromium.headless,
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
+    headless: true,
+    args: browserArgs,
+    defaultViewport: chromium?.defaultViewport || null,
     timeout: 0
   }
 });
@@ -116,7 +133,8 @@ client.on('message', async msg => {
       } else {
         await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla 🤍\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 🤍 HABLAR CON ASESOR`);
       }
-      carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora }; return;
+      carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora };
+      return;
     }
     if (['stock','inventario','admin'].includes(texto)) {
       if (!esAdmin(num)) { await msg.reply(`❌ No tienes permiso 🤍`); return; }
@@ -143,14 +161,14 @@ client.on('message', async msg => {
       if (!prod) { await msg.reply(`❌ Producto no válido.`); return; }
       const prodFresco = (global.db?.productos||[]).find(p=> p.nombre === prod.nombre) || prod;
       let stockReal = prodFresco.stock; if (stockReal === undefined || stockReal === null) stockReal = 100;
-      if (stockReal <= 0) { await msg.reply(`❌ ${prodFresco.nombre} no está disponible 🤍`); return; }
+      if (stockReal <= 0) { await msg.reply(`❌ ${prodFresco.nombre} no está disponible en este momento 🤍\nElige otro sabor:`); let txt2 = `💖 ${cart.categoriaSel.toUpperCase()} 🤍\n\n`; cart.productosFiltrados.forEach((p,i) => { txt2 += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio}\n`; }); await msg.reply(txt2); return; }
       prodFresco.stock = stockReal; await msg.reply(`✅ Elegiste: ${prodFresco.emoji||'🍦'} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas unidades deseas?`);
       carritos[num] = {...cart, paso: 'eligiendo_cantidad', productoSel: prodFresco }; return;
     }
     if (cart.paso === 'eligiendo_cantidad') {
       const cant = parseInt(texto); if (isNaN(cant) || cant <= 0) { await msg.reply(`❌ Cantidad no válida.`); return; }
       let stockDisp = cart.productoSel.stock; if(stockDisp===undefined||stockDisp===null) stockDisp=100;
-      if (cant > stockDisp) { await msg.reply(`❌ Solo nos quedan ${stockDisp} disponibles 🤍`); return; }
+      if (cant > stockDisp) { await msg.reply(`❌ Solo nos quedan ${stockDisp} disponibles 🤍\nElige una cantidad menor.`); return; }
       const prod = cart.productoSel; cart.items.push({...prod, cantidad: cant, total: prod.precio * cant });
       const total = cart.items.reduce((s,i)=>s+i.total,0);
       await msg.reply(`✅ Agregado al carrito\n\n🛒 ${resumenCarrito(cart)}\n\n💖 TOTAL: $${total}\n\n1️⃣ Seguir comprando\n2️⃣ Pagar\n3️⃣ Vaciar carrito`);
