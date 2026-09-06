@@ -7,7 +7,7 @@ try { chromium = require('@sparticuz/chromium-min'); } catch(e){ console.log('ch
 (async () => {
 try {
 console.log('⏳ Iniciando bot...');
-let executablePath = undefined;
+let executablePath = '/tmp/chromium';
 let browserArgs = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
@@ -25,46 +25,36 @@ if (chromium) {
   browserArgs = chromium.args;
 }
 
-// Buscar Chrome instalado por puppeteer en Render
-function findChrome() {
-  const cachePath = '/opt/render/.cache/puppeteer';
-  try {
-    if (!fs.existsSync(cachePath)) return undefined;
-    const chromeDir = path.join(cachePath, 'chrome');
-    if (!fs.existsSync(chromeDir)) return undefined;
-    const versions = fs.readdirSync(chromeDir);
-    for (const ver of versions) {
-      const possible = path.join(chromeDir, ver, 'chrome-linux64', 'chrome');
-      if (fs.existsSync(possible)) {
-        return possible;
-      }
-    }
-  } catch(e){ console.log('Error buscando chrome', e.message); }
-  return undefined;
-}
-
-const foundChrome = findChrome();
-if (foundChrome) {
-  executablePath = foundChrome;
-  console.log('Chrome encontrado:', executablePath);
-} else {
-  console.log('Chrome no encontrado en cache, intentando default');
+// Si /tmp/chromium no existe, buscamos el de puppeteer
+if (!fs.existsSync(executablePath)) {
+  const posibles = [
+    '/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome',
+    '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome'
+  ];
+  for (const p of posibles) {
+    if (fs.existsSync(p)) { executablePath = p; break; }
+  }
+  if (!fs.existsSync(executablePath)) executablePath = undefined;
 }
 
 console.log('Chromium final:', executablePath || 'bundled/default');
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
     executablePath: executablePath,
     headless: true,
     args: browserArgs,
-    defaultViewport: chromium?.defaultViewport || null
+    defaultViewport: chromium?.defaultViewport || null,
+    timeout: 0
   }
 });
 
 let carritos = {};
 let numeroVinculado = null;
 global.client = client;
+global.qrCode = null;
+global.botStatus = 'INICIANDO';
 
 function esAdmin(num) {
   if (numeroVinculado && num === numeroVinculado) return true;
@@ -76,12 +66,17 @@ function esAdmin(num) {
   });
 }
 
+// QR CON REFRESH AUTOMATICO
 client.on('qr', qr => {
   global.qrCode = qr;
-  global.botStatus = 'QR LISTO';
-  console.log('QR LISTO - ve a /qr');
+  global.botStatus = 'QR LISTO - ' + new Date().toLocaleTimeString('es-CO', {timeZone: 'America/Bogota'});
+  console.log('🔄 QR LISTO - ve a /qr -', global.botStatus);
 });
-client.on('authenticated', () => console.log('✅ Autenticado'));
+client.on('authenticated', () => {
+  console.log('✅ Autenticado');
+  global.botStatus = 'AUTENTICADO';
+  global.qrCode = null;
+});
 client.on('auth_failure', e => {
   console.log('❌ Auth fail', e);
   global.botStatus = 'Auth fail: ' + e;
@@ -96,6 +91,7 @@ client.on('ready', () => {
 client.on('disconnected', r => {
   console.log('❌ Desconectado', r);
   global.botStatus = 'Desconectado: ' + r;
+  global.qrCode = null;
   setTimeout(()=> client.initialize(), 3000);
 });
 
