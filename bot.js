@@ -31,7 +31,7 @@ let browserArgs = [
 if (chromium) {
   console.log('Descargando chromium binario...');
   executablePath = await chromium.executablePath();
-  browserArgs = chromium.args;
+  browserArgs = chromium.args.filter(arg => !arg.includes('single-process') && !arg.includes('no-zygote'));
   console.log('Chromium path:', executablePath);
 }
 
