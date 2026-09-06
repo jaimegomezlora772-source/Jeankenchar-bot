@@ -1,4 +1,6 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const fs = require('fs');
+const path = require('path');
 let chromium;
 try { chromium = require('@sparticuz/chromium-min'); } catch(e){ console.log('chromium-min no disponible, usando args default'); }
 
@@ -21,7 +23,32 @@ let browserArgs = [
 if (chromium) {
   console.log('Usando args de chromium-min sin descargar pack externo');
   browserArgs = chromium.args;
-  executablePath = undefined;
+}
+
+// Buscar Chrome instalado por puppeteer en Render
+function findChrome() {
+  const cachePath = '/opt/render/.cache/puppeteer';
+  try {
+    if (!fs.existsSync(cachePath)) return undefined;
+    const chromeDir = path.join(cachePath, 'chrome');
+    if (!fs.existsSync(chromeDir)) return undefined;
+    const versions = fs.readdirSync(chromeDir);
+    for (const ver of versions) {
+      const possible = path.join(chromeDir, ver, 'chrome-linux64', 'chrome');
+      if (fs.existsSync(possible)) {
+        return possible;
+      }
+    }
+  } catch(e){ console.log('Error buscando chrome', e.message); }
+  return undefined;
+}
+
+const foundChrome = findChrome();
+if (foundChrome) {
+  executablePath = foundChrome;
+  console.log('Chrome encontrado:', executablePath);
+} else {
+  console.log('Chrome no encontrado en cache, intentando default');
 }
 
 console.log('Chromium final:', executablePath || 'bundled/default');
