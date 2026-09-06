@@ -22,11 +22,8 @@ let numeroVinculado = null;
 global.client = client;
 
 function esAdmin(num) {
-  // El vinculado es admin
   if (numeroVinculado && num === numeroVinculado) return true;
-  // Si aún no sabemos el vinculado, el que tiene info del cliente es admin
   if (client.info?.wid?._serialized && num === client.info.wid._serialized) return true;
-  // Vendedoras del panel también son admin
   const vendedoras = global.db?.vendedoras || [];
   return vendedoras.some(v => {
     const w = (v.whatsapp || '').replace(/\D/g,'');
@@ -98,10 +95,10 @@ client.on('message', async msg => {
       carritos[num] = cart;
     }
 
-    // RESET FORZADO SIEMPRE
+    // MENU INICIO
     if (['hola','menu','inicio','reset'].includes(texto)) {
       if (esAdmin(num)) {
-        await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Admin'} ✨\nNúmero admin: ${numeroVinculado || client.info?.wid?.user || 'vinculado'}\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK`);
+        await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Admin'} ✨\nAdmin vinculado: ${numeroVinculado || client.info?.wid?.user || 'cargando...'}\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK`);
       } else {
         await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla 🤍\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 🤍 HABLAR CON ASESOR`);
       }
@@ -109,14 +106,17 @@ client.on('message', async msg => {
       return;
     }
 
-    // COMANDOS ADMIN - SOLO VINCULADO + VENDEDORAS
+    // COMANDOS ADMIN
     if (['stock','inventario','admin'].includes(texto)) {
       if (!esAdmin(num)) {
-        await msg.reply(`❌ No tienes permiso para ver esa información 🤍`);
+        await msg.reply(`❌ No tienes permiso 🤍`);
         return;
       }
-      let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\nAdmin: ${numeroVinculado}\n━━━━━━━━━━━━━━━\n\n`;
-      (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre}\nCat: ${p.categoria} | Stock: ${p.stock??0} | $${p.precio}\n\n`);
+      let txt = `📦 *INVENTARIO - ADMIN*\nAdmin: ${numeroVinculado}\n━━━━━━━━━━━━━━━\n\n`;
+      (global.db?.productos||[]).forEach(p=>{
+        let s = p.stock; if(s===undefined||s===null) s=100;
+        txt+=`${p.emoji||'🍦'} ${p.nombre}\nCat: ${p.categoria} | Stock: ${s} | $${p.precio}\n\n`;
+      });
       await msg.reply(txt);
       return;
     }
@@ -131,8 +131,11 @@ client.on('message', async msg => {
     }
     if (texto === '2' && cart.paso === 'inicio') {
       if (esAdmin(num)) {
-        let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\n\n`;
-        (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre} | Stock: ${p.stock??0} | $${p.precio}\n`);
+        let txt = `📦 *INVENTARIO*\n\n`;
+        (global.db?.productos||[]).forEach(p=>{
+          let s = p.stock; if(s===undefined||s===null) s=100;
+          txt+=`${p.emoji||'🍦'} ${p.nombre} | Stock: ${s} | $${p.precio}\n`;
+        });
         await msg.reply(txt);
         return;
       }
@@ -145,10 +148,10 @@ client.on('message', async msg => {
       const cat = cart.categorias[idx];
       if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida.`); return; }
       const productos = getProductosPorCategoria(cat);
+      // SOLO CLIENTE: NO MOSTRAR STOCK
       let txt = `💖 ${cat.toUpperCase()} 🤍\n\n`;
       productos.forEach((p,i) => {
-        const stockReal = (global.db?.productos||[]).find(x=>x.nombre===p.nombre)?.stock?? p.stock;
-        txt += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio} Stock:${stockReal}\n`;
+        txt += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio}\n`;
       });
       await msg.reply(txt);
       carritos[num] = {...cart, paso: 'eligiendo_producto', categoriaSel: cat, productosFiltrados: productos };
@@ -159,22 +162,33 @@ client.on('message', async msg => {
       const prod = cart.productosFiltrados[idx];
       if (!prod) { await msg.reply(`❌ Producto no válido.`); return; }
       const prodFresco = (global.db?.productos||[]).find(p=> p.nombre === prod.nombre) || prod;
-      if ((prodFresco.stock??0) <= 0) {
-        await msg.reply(`❌ ${prodFresco.nombre} AGOTADO\n\nEscribe *HOLA* para volver al inicio`);
+
+      let stockReal = prodFresco.stock;
+      if (stockReal === undefined || stockReal === null) stockReal = 100;
+
+      if (stockReal <= 0) {
+        await msg.reply(`❌ ${prodFresco.nombre} no está disponible en este momento 🤍\nElige otro sabor:`);
+        let txt2 = `💖 ${cart.categoriaSel.toUpperCase()} 🤍\n\n`;
+        cart.productosFiltrados.forEach((p,i) => {
+          txt2 += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio}\n`;
+        });
+        await msg.reply(txt2);
         return;
       }
-      await msg.reply(`✅ Elegiste: ${prodFresco.emoji} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas?`);
+      prodFresco.stock = stockReal;
+      await msg.reply(`✅ Elegiste: ${prodFresco.emoji||'🍦'} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas unidades deseas?`);
       carritos[num] = {...cart, paso: 'eligiendo_cantidad', productoSel: prodFresco };
       return;
     }
     if (cart.paso === 'eligiendo_cantidad') {
       const cant = parseInt(texto);
       if (isNaN(cant) || cant <= 0) { await msg.reply(`❌ Cantidad no válida.`); return; }
-      if (cant > (cart.productoSel.stock??999)) { await msg.reply(`❌ Solo quedan ${cart.productoSel.stock}`); return; }
+      let stockDisp = cart.productoSel.stock; if(stockDisp===undefined||stockDisp===null) stockDisp=100;
+      if (cant > stockDisp) { await msg.reply(`❌ Solo nos quedan ${stockDisp} disponibles 🤍\nElige una cantidad menor.`); return; }
       const prod = cart.productoSel;
       cart.items.push({...prod, cantidad: cant, total: prod.precio * cant });
       const total = cart.items.reduce((s,i)=>s+i.total,0);
-      await msg.reply(`✅ Agregado\n\n🛒 ${resumenCarrito(cart)}\n\n💖 TOTAL: $${total}\n\n1️⃣ Seguir comprando\n2️⃣ Pagar\n3️⃣ Vaciar`);
+      await msg.reply(`✅ Agregado al carrito\n\n🛒 ${resumenCarrito(cart)}\n\n💖 TOTAL: $${total}\n\n1️⃣ Seguir comprando\n2️⃣ Pagar\n3️⃣ Vaciar carrito`);
       carritos[num] = {...cart, paso: 'carrito', productoSel: null };
       return;
     }
@@ -194,7 +208,7 @@ client.on('message', async msg => {
       }
       if (texto === '3') {
         carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora };
-        await msg.reply(`🗑️ Vaciado. Escribe HOLA`); return;
+        await msg.reply(`🗑️ Carrito vaciado. Escribe HOLA`); return;
       }
     }
     if (cart.paso === 'preguntar_observacion') {
@@ -230,7 +244,10 @@ client.on('message', async msg => {
       if (global.db?.productos) {
         for (let item of cart.items) {
           let p = global.db.productos.find(pr => pr.nombre === item.nombre);
-          if (p) p.stock = (p.stock || 0) - item.cantidad;
+          if (p) {
+            let s = p.stock; if(s===undefined||s===null) s=100;
+            p.stock = s - item.cantidad;
+          }
         }
         if (global.guardarDB) await global.guardarDB();
       }
