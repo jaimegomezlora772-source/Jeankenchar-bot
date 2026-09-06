@@ -1,10 +1,23 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-let chromium;
-try { chromium = require('@sparticuz/chromium-min'); } catch(e){ console.log('chromium-min no disponible, usando args default'); }
+let chromium = null;
+let chromiumPkg = 'ninguno';
+try {
+  chromium = require('@sparticuz/chromium-min');
+  chromiumPkg = 'chromium-min';
+  console.log('✅ Cargado chromium-min');
+} catch(e){
+  try {
+    chromium = require('@sparticuz/chromium');
+    chromiumPkg = 'chromium';
+    console.log('✅ Cargado chromium (fallback)', e.message);
+  } catch(e2){
+    console.log('❌ chromium-min no disponible, usando args default', e.message);
+  }
+}
 
 (async () => {
 try {
-console.log('⏳ Iniciando bot...');
+console.log('⏳ Iniciando bot... pkg:', chromiumPkg);
 let executablePath = undefined;
 let browserArgs = [
   '--no-sandbox',
@@ -19,7 +32,7 @@ let browserArgs = [
 ];
 
 if (chromium) {
-  console.log('Usando chromium-min - descargando binario...');
+  console.log('Usando args de', chromiumPkg, '- descargando binario...');
   executablePath = await chromium.executablePath();
   browserArgs = chromium.args;
   console.log('Chromium path descargado:', executablePath);
