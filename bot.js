@@ -19,15 +19,9 @@ let browserArgs = [
 ];
 
 if (chromium) {
-  try {
-    console.log('Intentando cargar Chromium pack...');
-    executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
-    console.log('Chromium pack OK:', executablePath);
-    browserArgs = chromium.args;
-  } catch(e){
-    console.log('⚠️ No se pudo descargar pack, usando Chromium del sistema:', e.message);
-    executablePath = undefined; // que use el de Render
-  }
+  console.log('Usando args de chromium-min sin descargar pack externo');
+  browserArgs = chromium.args;
+  executablePath = undefined;
 }
 
 console.log('Chromium final:', executablePath || 'bundled/default');
