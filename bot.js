@@ -2,6 +2,8 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const chromium = require('@sparticuz/chromium-min');
 
 (async () => {
+try {
+console.log('⏳ Iniciando bot...');
 const executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
 console.log('Chromium:', executablePath);
 
@@ -10,7 +12,7 @@ const client = new Client({
   puppeteer: {
     executablePath,
     headless: chromium.headless,
-    args: [...chromium.args, '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--single-process','--no-zygote'],
+    args: chromium.args,
     defaultViewport: chromium.defaultViewport
   }
 });
@@ -18,26 +20,38 @@ const client = new Client({
 let carritos = {};
 global.client = client;
 
+const NUMERO_DUEÑA = '573023790715@c.us';
+function esAdmin(num) {
+  if (num === NUMERO_DUEÑA) return true;
+  const vendedoras = global.db?.vendedoras || [];
+  return vendedoras.some(v => {
+    const w = (v.whatsapp || '').replace(/\D/g,'');
+    return w && num.includes(w);
+  });
+}
+
 client.on('qr', qr => {
   global.qrCode = qr;
   global.botStatus = 'QR LISTO';
   console.log('QR LISTO');
 });
-
+client.on('authenticated', () => console.log('✅ Autenticado'));
+client.on('auth_failure', e => console.log('❌ Auth fail', e));
 client.on('ready', () => {
   global.botStatus = 'CONECTADO ' + client.info.wid.user;
   global.qrCode = null;
   console.log('BOT CONECTADO', client.info.wid.user);
 });
+client.on('disconnected', r => console.log('❌ Desconectado', r));
 
 function getCategorias() {
   const prods = global.db?.productos || [];
-  if (prods.length === 0) return ['Helados'];
-  return [...new Set(prods.map(p => p.categoria || 'Helados'))];
+  if (prods.length === 0) return ['HELADOS POR BOLA'];
+  return [...new Set(prods.map(p => (p.categoria || 'Helados').trim()))];
 }
 function getProductosPorCategoria(cat) {
-  const prods = global.db?.productos || [{nombre:'HELADO DE FRESA', precio:3000, categoria:'Helados', emoji:'🍦', stock:10}];
-  return prods.filter(p => (p.categoria || 'Helados') === cat);
+  const prods = global.db?.productos || [];
+  return prods.filter(p => (p.categoria || 'Helados').trim() === cat.trim());
 }
 function resumenCarrito(cart) {
   if(!cart.items.length) return 'Vacío';
@@ -71,26 +85,36 @@ client.on('message', async msg => {
     const textoOriginal = msg.body.trim();
     const texto = textoOriginal.toLowerCase();
     let cart = carritos[num] || { items: [], paso: 'inicio', observacion: '', vendedora: null };
-    const vendedora = global.db?.vendedoras?.find(v=> num.includes(v.whatsapp));
+
+    const vendedora = global.db?.vendedoras?.find(v=> num.includes((v.whatsapp||'').replace(/\D/g,'')));
     if (vendedora &&!cart.vendedora) {
       cart.vendedora = vendedora.nombre;
       carritos[num] = cart;
     }
-    if (num === '573023790715@c.us' && (texto === 'stock' || texto === 'inventario')) {
-      let txt = `📦 INVENTARIO JEANKENCHAR\n\n`;
-      (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre} | Stock: ${p.stock??0} | $${p.precio}\n`);
-      await msg.reply(txt);
-      return;
-    }
-    if (['hola','menu','inicio'].includes(texto)) {
-      if (vendedora) {
-        await msg.reply(`💖 Hola ${vendedora.nombre} te identifique como vendedora de JEANKENCHAR 🤍\nEscribe *MENU* para registrar venta fisica\n\n1️⃣ 🍦 VER MENU\n2️⃣ 🤍 HABLAR CON ASESOR`);
+
+    // --- RESET FORZADO SIEMPRE FUNCIONA (fix de tu foto) ---
+    if (['hola','menu','inicio','reset'].includes(texto)) {
+      if (esAdmin(num)) {
+        await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Dueña'} ✨\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK\n3️⃣ 🤍 HABLAR CON ASESOR`);
       } else {
         await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla 🤍\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 🤍 HABLAR CON ASESOR`);
       }
-      carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: vendedora?.nombre || null };
+      carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora };
       return;
     }
+
+    // --- COMANDOS ADMIN SOLO DUEÑA + VENDEDORAS DEL PANEL ---
+    if (['stock','inventario','admin'].includes(texto)) {
+      if (!esAdmin(num)) {
+        await msg.reply(`❌ No tienes permiso para ver esa información 🤍`);
+        return;
+      }
+      let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\n━━━━━━━━━━━━━━━\n\n`;
+      (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre}\nCat: ${p.categoria} | Stock: ${p.stock??0} | $${p.precio}\n\n`);
+      await msg.reply(txt);
+      return;
+    }
+
     if ((texto === '1' || texto.includes('ver menu')) && cart.paso === 'inicio') {
       const cats = getCategorias();
       let txt = `💖 MENU JEANKENCHAR 🤍\nElige una categoria:\n\n`;
@@ -100,6 +124,12 @@ client.on('message', async msg => {
       return;
     }
     if (texto === '2' && cart.paso === 'inicio') {
+      if (esAdmin(num)) {
+        let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\n\n`;
+        (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre} | Stock: ${p.stock??0} | $${p.precio}\n`);
+        await msg.reply(txt);
+        return;
+      }
       await msg.reply(`🤍 Perfecto, ¿Cuál es tu nombre?`);
       carritos[num] = {...cart, paso: 'esperando_nombre_asesor'};
       return;
@@ -107,10 +137,13 @@ client.on('message', async msg => {
     if (cart.paso === 'eligiendo_categoria') {
       const idx = parseInt(texto) - 1;
       const cat = cart.categorias[idx];
-      if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida.`); return; }
+      if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida. Escribe un número`); return; }
       const productos = getProductosPorCategoria(cat);
       let txt = `💖 ${cat.toUpperCase()} 🤍\n\n`;
-      productos.forEach((p,i) => txt += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio} Stock:${p.stock??0}\n`);
+      productos.forEach((p,i) => {
+        const stockReal = (global.db?.productos||[]).find(x=>x.nombre===p.nombre)?.stock?? p.stock;
+        txt += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio} Stock:${stockReal}\n`;
+      });
       await msg.reply(txt);
       carritos[num] = {...cart, paso: 'eligiendo_producto', categoriaSel: cat, productosFiltrados: productos };
       return;
@@ -119,9 +152,13 @@ client.on('message', async msg => {
       const idx = parseInt(texto) - 1;
       const prod = cart.productosFiltrados[idx];
       if (!prod) { await msg.reply(`❌ Producto no válido.`); return; }
-      if ((prod.stock??0) <= 0) { await msg.reply(`❌ ${prod.nombre} AGOTADO`); return; }
-      await msg.reply(`✅ Elegiste: ${prod.emoji} ${prod.nombre} $${prod.precio}\n¿Cuántas?`);
-      carritos[num] = {...cart, paso: 'eligiendo_cantidad', productoSel: prod };
+      const prodFresco = (global.db?.productos||[]).find(p=> p.nombre === prod.nombre) || prod;
+      if ((prodFresco.stock??0) <= 0) {
+        await msg.reply(`❌ ${prodFresco.nombre} AGOTADO\n\nEscribe *HOLA* para volver al inicio`);
+        return;
+      }
+      await msg.reply(`✅ Elegiste: ${prodFresco.emoji} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas unidades?`);
+      carritos[num] = {...cart, paso: 'eligiendo_cantidad', productoSel: prodFresco };
       return;
     }
     if (cart.paso === 'eligiendo_cantidad') {
@@ -151,12 +188,12 @@ client.on('message', async msg => {
       }
       if (texto === '3') {
         carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora };
-        await msg.reply(`🗑️ Vaciado. Escribe menu`); return;
+        await msg.reply(`🗑️ Vaciado. Escribe HOLA`); return;
       }
     }
     if (cart.paso === 'preguntar_observacion') {
       let obs = textoOriginal;
-      if (texto === 'no' || texto === 'n' || texto === 'ninguna') obs = 'Ninguna';
+      if (['no','n','ninguna'].includes(texto)) obs = 'Ninguna';
       cart.observacion = obs;
       const total = cart.items.reduce((s,i)=>s+i.total,0);
       try {
@@ -181,7 +218,7 @@ client.on('message', async msg => {
       });
       await msg.reply(factura);
       try {
-        await client.sendMessage('573023790715@c.us', `🔔 NUEVO PEDIDO\n\n${factura}\nDe: ${num}`);
+        await client.sendMessage(NUMERO_DUEÑA, `🔔 NUEVO PEDIDO\n\n${factura}\nDe: ${num}`);
       } catch(e){}
       if (global.db?.productos) {
         for (let item of cart.items) {
@@ -195,6 +232,9 @@ client.on('message', async msg => {
     }
     if (cart.paso === 'esperando_nombre_asesor') {
       await msg.reply(`🤍 Gracias ${textoOriginal}, un asesor te contactará pronto.`);
+      try {
+        await client.sendMessage(NUMERO_DUEÑA, `🔔 Cliente pide asesor: ${textoOriginal} - ${num}`);
+      } catch(e){}
       carritos[num] = { items: [], paso: 'inicio', observacion: '' };
       return;
     }
@@ -203,5 +243,11 @@ client.on('message', async msg => {
   }
 });
 
+console.log('⏳ Inicializando WhatsApp...');
 await client.initialize();
+
+} catch(err) {
+  console.log('❌ ERROR FATAL BOT', err);
+  global.botStatus = 'ERROR: ' + err.message;
+}
 })();
