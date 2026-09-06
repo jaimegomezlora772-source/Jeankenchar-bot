@@ -18,11 +18,15 @@ const client = new Client({
 });
 
 let carritos = {};
+let numeroVinculado = null;
 global.client = client;
 
-const NUMERO_DUEÑA = '573023790715@c.us';
 function esAdmin(num) {
-  if (num === NUMERO_DUEÑA) return true;
+  // El vinculado es admin
+  if (numeroVinculado && num === numeroVinculado) return true;
+  // Si aún no sabemos el vinculado, el que tiene info del cliente es admin
+  if (client.info?.wid?._serialized && num === client.info.wid._serialized) return true;
+  // Vendedoras del panel también son admin
   const vendedoras = global.db?.vendedoras || [];
   return vendedoras.some(v => {
     const w = (v.whatsapp || '').replace(/\D/g,'');
@@ -38,9 +42,11 @@ client.on('qr', qr => {
 client.on('authenticated', () => console.log('✅ Autenticado'));
 client.on('auth_failure', e => console.log('❌ Auth fail', e));
 client.on('ready', () => {
+  numeroVinculado = client.info.wid._serialized;
+  global.numeroVinculado = numeroVinculado;
   global.botStatus = 'CONECTADO ' + client.info.wid.user;
   global.qrCode = null;
-  console.log('BOT CONECTADO', client.info.wid.user);
+  console.log('BOT CONECTADO - ADMIN ES:', numeroVinculado);
 });
 client.on('disconnected', r => console.log('❌ Desconectado', r));
 
@@ -92,10 +98,10 @@ client.on('message', async msg => {
       carritos[num] = cart;
     }
 
-    // --- RESET FORZADO SIEMPRE FUNCIONA (fix de tu foto) ---
+    // RESET FORZADO SIEMPRE
     if (['hola','menu','inicio','reset'].includes(texto)) {
       if (esAdmin(num)) {
-        await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Dueña'} ✨\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK\n3️⃣ 🤍 HABLAR CON ASESOR`);
+        await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Admin'} ✨\nNúmero admin: ${numeroVinculado || client.info?.wid?.user || 'vinculado'}\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK`);
       } else {
         await msg.reply(`💖💖💖 HELADERIA JEANKENCHAR 💖💖💖\n🤍 Cra 12F #104-20 Bquilla 🤍\n\n¿Qué deseas?\n\n1️⃣ 🍦 VER MENU\n2️⃣ 🤍 HABLAR CON ASESOR`);
       }
@@ -103,13 +109,13 @@ client.on('message', async msg => {
       return;
     }
 
-    // --- COMANDOS ADMIN SOLO DUEÑA + VENDEDORAS DEL PANEL ---
+    // COMANDOS ADMIN - SOLO VINCULADO + VENDEDORAS
     if (['stock','inventario','admin'].includes(texto)) {
       if (!esAdmin(num)) {
         await msg.reply(`❌ No tienes permiso para ver esa información 🤍`);
         return;
       }
-      let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\n━━━━━━━━━━━━━━━\n\n`;
+      let txt = `📦 *INVENTARIO JEANKENCHAR - ADMIN*\nAdmin: ${numeroVinculado}\n━━━━━━━━━━━━━━━\n\n`;
       (global.db?.productos||[]).forEach(p=>txt+=`${p.emoji||'🍦'} ${p.nombre}\nCat: ${p.categoria} | Stock: ${p.stock??0} | $${p.precio}\n\n`);
       await msg.reply(txt);
       return;
@@ -137,7 +143,7 @@ client.on('message', async msg => {
     if (cart.paso === 'eligiendo_categoria') {
       const idx = parseInt(texto) - 1;
       const cat = cart.categorias[idx];
-      if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida. Escribe un número`); return; }
+      if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida.`); return; }
       const productos = getProductosPorCategoria(cat);
       let txt = `💖 ${cat.toUpperCase()} 🤍\n\n`;
       productos.forEach((p,i) => {
@@ -157,7 +163,7 @@ client.on('message', async msg => {
         await msg.reply(`❌ ${prodFresco.nombre} AGOTADO\n\nEscribe *HOLA* para volver al inicio`);
         return;
       }
-      await msg.reply(`✅ Elegiste: ${prodFresco.emoji} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas unidades?`);
+      await msg.reply(`✅ Elegiste: ${prodFresco.emoji} ${prodFresco.nombre} $${prodFresco.precio}\n¿Cuántas?`);
       carritos[num] = {...cart, paso: 'eligiendo_cantidad', productoSel: prodFresco };
       return;
     }
@@ -218,7 +224,8 @@ client.on('message', async msg => {
       });
       await msg.reply(factura);
       try {
-        await client.sendMessage(NUMERO_DUEÑA, `🔔 NUEVO PEDIDO\n\n${factura}\nDe: ${num}`);
+        const destino = numeroVinculado || client.info.wid._serialized;
+        await client.sendMessage(destino, `🔔 NUEVO PEDIDO\n\n${factura}\nDe: ${num}`);
       } catch(e){}
       if (global.db?.productos) {
         for (let item of cart.items) {
@@ -233,7 +240,8 @@ client.on('message', async msg => {
     if (cart.paso === 'esperando_nombre_asesor') {
       await msg.reply(`🤍 Gracias ${textoOriginal}, un asesor te contactará pronto.`);
       try {
-        await client.sendMessage(NUMERO_DUEÑA, `🔔 Cliente pide asesor: ${textoOriginal} - ${num}`);
+        const destino = numeroVinculado || client.info.wid._serialized;
+        await client.sendMessage(destino, `🔔 Cliente pide asesor: ${textoOriginal} - ${num}`);
       } catch(e){}
       carritos[num] = { items: [], paso: 'inicio', observacion: '' };
       return;
