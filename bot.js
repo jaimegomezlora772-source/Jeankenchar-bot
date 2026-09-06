@@ -1,19 +1,43 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const chromium = require('@sparticuz/chromium-min');
+let chromium;
+try { chromium = require('@sparticuz/chromium-min'); } catch(e){ console.log('chromium-min no disponible, usando args default'); }
 
 (async () => {
 try {
 console.log('⏳ Iniciando bot...');
-const executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
-console.log('Chromium:', executablePath);
+let executablePath = undefined;
+let browserArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-accelerated-2d-canvas',
+  '--no-first-run',
+  '--no-zygote',
+  '--single-process',
+  '--disable-gpu',
+  '--disable-extensions'
+];
 
+if (chromium) {
+  try {
+    console.log('Intentando cargar Chromium pack...');
+    executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
+    console.log('Chromium pack OK:', executablePath);
+    browserArgs = chromium.args;
+  } catch(e){
+    console.log('⚠️ No se pudo descargar pack, usando Chromium del sistema:', e.message);
+    executablePath = undefined; // que use el de Render
+  }
+}
+
+console.log('Chromium final:', executablePath || 'bundled/default');
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
-    executablePath,
-    headless: chromium.headless,
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport
+    executablePath: executablePath,
+    headless: true,
+    args: browserArgs,
+    defaultViewport: chromium?.defaultViewport || null
   }
 });
 
@@ -34,10 +58,13 @@ function esAdmin(num) {
 client.on('qr', qr => {
   global.qrCode = qr;
   global.botStatus = 'QR LISTO';
-  console.log('QR LISTO');
+  console.log('QR LISTO - ve a /qr');
 });
 client.on('authenticated', () => console.log('✅ Autenticado'));
-client.on('auth_failure', e => console.log('❌ Auth fail', e));
+client.on('auth_failure', e => {
+  console.log('❌ Auth fail', e);
+  global.botStatus = 'Auth fail: ' + e;
+});
 client.on('ready', () => {
   numeroVinculado = client.info.wid._serialized;
   global.numeroVinculado = numeroVinculado;
@@ -45,7 +72,11 @@ client.on('ready', () => {
   global.qrCode = null;
   console.log('BOT CONECTADO - ADMIN ES:', numeroVinculado);
 });
-client.on('disconnected', r => console.log('❌ Desconectado', r));
+client.on('disconnected', r => {
+  console.log('❌ Desconectado', r);
+  global.botStatus = 'Desconectado: ' + r;
+  setTimeout(()=> client.initialize(), 3000);
+});
 
 function getCategorias() {
   const prods = global.db?.productos || [];
@@ -87,6 +118,7 @@ client.on('message', async msg => {
     const num = msg.from;
     const textoOriginal = msg.body.trim();
     const texto = textoOriginal.toLowerCase();
+    console.log(`📩 ${num}: ${textoOriginal}`);
     let cart = carritos[num] || { items: [], paso: 'inicio', observacion: '', vendedora: null };
 
     const vendedora = global.db?.vendedoras?.find(v=> num.includes((v.whatsapp||'').replace(/\D/g,'')));
@@ -95,7 +127,6 @@ client.on('message', async msg => {
       carritos[num] = cart;
     }
 
-    // MENU INICIO
     if (['hola','menu','inicio','reset'].includes(texto)) {
       if (esAdmin(num)) {
         await msg.reply(`💖 *PANEL ADMIN JEANKENCHAR* 🤍\nHola ${cart.vendedora || 'Admin'} ✨\nAdmin vinculado: ${numeroVinculado || client.info?.wid?.user || 'cargando...'}\n\n1️⃣ 🍦 VER MENU CLIENTE\n2️⃣ 📦 VER STOCK`);
@@ -106,7 +137,6 @@ client.on('message', async msg => {
       return;
     }
 
-    // COMANDOS ADMIN
     if (['stock','inventario','admin'].includes(texto)) {
       if (!esAdmin(num)) {
         await msg.reply(`❌ No tienes permiso 🤍`);
@@ -148,7 +178,6 @@ client.on('message', async msg => {
       const cat = cart.categorias[idx];
       if (cat === undefined || isNaN(idx)) { await msg.reply(`❌ Opción no válida.`); return; }
       const productos = getProductosPorCategoria(cat);
-      // SOLO CLIENTE: NO MOSTRAR STOCK
       let txt = `💖 ${cat.toUpperCase()} 🤍\n\n`;
       productos.forEach((p,i) => {
         txt += `${i+1}. ${p.emoji||'🍦'} ${p.nombre} - $${p.precio}\n`;
@@ -162,10 +191,8 @@ client.on('message', async msg => {
       const prod = cart.productosFiltrados[idx];
       if (!prod) { await msg.reply(`❌ Producto no válido.`); return; }
       const prodFresco = (global.db?.productos||[]).find(p=> p.nombre === prod.nombre) || prod;
-
       let stockReal = prodFresco.stock;
       if (stockReal === undefined || stockReal === null) stockReal = 100;
-
       if (stockReal <= 0) {
         await msg.reply(`❌ ${prodFresco.nombre} no está disponible en este momento 🤍\nElige otro sabor:`);
         let txt2 = `💖 ${cart.categoriaSel.toUpperCase()} 🤍\n\n`;
@@ -249,7 +276,6 @@ client.on('message', async msg => {
             p.stock = s - item.cantidad;
           }
         }
-        if (global.guardarDB) await global.guardarDB();
       }
       carritos[num] = { items: [], paso: 'inicio', observacion: '', vendedora: cart.vendedora };
       return;
@@ -264,7 +290,7 @@ client.on('message', async msg => {
       return;
     }
   } catch (e) {
-    console.log('❌ ERROR', e.message);
+    console.log('❌ ERROR mensaje', e.message, e.stack);
   }
 });
 
